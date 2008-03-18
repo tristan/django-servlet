@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<!DOCTYPE web-app
+	  PUBLIC "-//Sun Microsystems, Inc.//DTD Web Application 2.2//EN"
+	  "http://java.sun.com/j2ee/dtds/web-app_2_2.dtd">
+
+<web-app>
+  <servlet>
+    <servlet-name>Django</servlet-name>
+    <servlet-class>au.edu.jcu.django.DjangoServlet</servlet-class>
+    <load-on-startup>1</load-on-startup>
+    <init-param>
+      <param-name>django.handler</param-name>
+      <param-value>django.core.handlers.servlet</param-value>
+    </init-param>
+    <init-param>
+      <param-name>python.home</param-name>
+      <param-value>/usr/local/share/jython</param-value>
+    </init-param>
+    <init-param>
+      <param-name>django.app.home</param-name>
+      <param-value>/home/tristan/projects/git/hydrant/src/main/jython</param-value>
+    </init-param>
+  </servlet>
+
+  <servlet-mapping>
+    <servlet-name>Django</servlet-name>
+    <url-pattern>/*</url-pattern>
+  </servlet-mapping>
+</web-app>
