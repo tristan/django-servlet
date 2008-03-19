@@ -31,19 +31,22 @@ import org.python.core.PyModule;
 public class DjangoServlet extends HttpServlet {
     private static Logger log = Logger.getLogger(DjangoServlet.class);
 
-    private PythonInterpreter interp;
     private PyObject handler;
-    private String rootp;
 
     public void init() throws ServletException {
-	this.rootp = this.getServletContext().getRealPath("/");
-	if (!this.rootp.endsWith(File.separator)) {
-	    this.rootp += File.separator;
+
+	// find the servlet root path
+	String rootpath = this.getServletContext().getRealPath("/");
+	if (!rootpath.endsWith(File.separator)) {
+	    rootpath += File.separator;
 	}
 
+	// properties to pass to PySystemState.initialize
 	Properties props = new Properties();
 	Properties baseProps = PySystemState.getBaseProperties();
 	
+	// adding all the element from the servlet context
+	// to the properties list
 	ServletContext context = this.getServletContext();
 	Enumeration e = context.getInitParameterNames();
 	while (e.hasMoreElements()) {
@@ -51,48 +54,65 @@ public class DjangoServlet extends HttpServlet {
 	    props.put(n, context.getInitParameter(n));
 	}
 
+	// also add any initialisation parameters to the 
+	// properties list
 	e = this.getInitParameterNames();
 	while (e.hasMoreElements()) {
 	    String n = (String)e.nextElement();
 	    props.put(n, this.getInitParameter(n));
 	}
 
+	// check if the python.home property exists
+	// and if it doesn't then make it based on the
+	// servlet root path
 	if (props.getProperty("python.home") == null &&
 			      baseProps.getProperty("python.home") == null) {
-		props.put("python.home", this.rootp + "WEB-INF" +
+		props.put("python.home", rootpath + "WEB-INF" +
 			  File.separator + "lib");
 	}
 
+	// make sure the django.handler property is set
 	if (props.getProperty("django.handler") == null) {
 	    throw new ServletException("property 'django.handler' needs to be set");
 	}
 
+	
 	String djangoAppHome = props.getProperty("django.app.home");
-	String djangoAppName = djangoAppHome.substring(djangoAppHome.lastIndexOf(File.separator)+1);
-	djangoAppHome = djangoAppHome.substring(0, djangoAppHome.lastIndexOf(File.separator));
 	if (djangoAppHome == null) {
 	    throw new ServletException("property 'django.app.home' needs to be set");
 	}
+	// get the django app name from the django.app.home variable
+	String djangoAppName = djangoAppHome.substring(djangoAppHome.lastIndexOf(File.separator)+1);
 
 	PySystemState.initialize(baseProps, props, new String[0]);
-	Py.getSystemState().path.append(new PyString(djangoAppHome));
+	PySystemState sys = Py.getSystemState();
+	sys.path.append(new PyString(djangoAppHome));
 	try {
 	    // load site packages
 	    imp.load("site");
-	    // load os
+
+	    // add DJANGO_SETTINGS_MODULE to os.environ 
+	    /*
 	    PyObject environ = imp.load("os").__getattr__(new PyString("environ"));
 	    HashMap<PyObject, PyObject> dsm = new HashMap<PyObject, PyObject>();
 	    dsm.put((PyObject)new PyString("DJANGO_SETTINGS_MODULE"), (PyObject)new PyString(djangoAppName + ".settings"));
-	    environ.invoke("update", (PyObject)new PyDictionary(dsm));
-	    // load django app
-	    imp.load(djangoAppName);
+	    environ.invoke("update", (PyObject)new PyDictionary(dsm)); */
+
+	    // load django app settings module
+	    PyObject settings = imp.load("settings");
+	    // get the setup_environ function from the django management module
+	    PyObject setup_environ = imp.importName("django.core.management", false, null,
+						    new PyTuple(new PyString("setup_environ")))
+		.__findattr__("setup_environ");
+	    // call setup_environ
+	    setup_environ.__call__(settings);
 		     
 	    // load django servlet handler
 	    this.handler = imp.importName(props.getProperty("django.handler"),
 					      false, null, new PyTuple(new PyString("handler")))
 		.__findattr__("handler");
 	} catch (PyException pye) {
-	    pye.printStackTrace();
+	    log.error(pye.getMessage(), pye);
 	    if (!Py.matchException(pye, Py.ImportError)) {
 		log.error("error importing site");
 	    }
@@ -101,6 +121,7 @@ public class DjangoServlet extends HttpServlet {
 
     protected void service(HttpServletRequest req, HttpServletResponse resp)
 	throws ServletException, IOException {
+	// call the handler
     	this.handler.__call__(new PyJavaInstance(req), new PyJavaInstance(resp));
     }
 }
