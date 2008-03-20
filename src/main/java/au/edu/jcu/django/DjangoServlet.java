@@ -32,6 +32,7 @@ public class DjangoServlet extends HttpServlet {
     private static Logger log = Logger.getLogger(DjangoServlet.class);
 
     private PyObject handler;
+    private PySystemState sys;
 
     public void init() throws ServletException {
 
@@ -85,18 +86,18 @@ public class DjangoServlet extends HttpServlet {
 	String djangoAppName = djangoAppHome.substring(djangoAppHome.lastIndexOf(File.separator)+1);
 
 	PySystemState.initialize(baseProps, props, new String[0]);
-	PySystemState sys = Py.getSystemState();
-	sys.path.append(new PyString(djangoAppHome));
+	this.sys = new PySystemState();
+	if (sys == null) {
+	    throw new ServletException("unable to initialise jython");
+	}
+	this.sys.path.append(new PyString(djangoAppHome));
 	try {
+	    
+	    // set the system state
+	    Py.setSystemState(this.sys);
+
 	    // load site packages
 	    imp.load("site");
-
-	    // add DJANGO_SETTINGS_MODULE to os.environ 
-	    /*
-	    PyObject environ = imp.load("os").__getattr__(new PyString("environ"));
-	    HashMap<PyObject, PyObject> dsm = new HashMap<PyObject, PyObject>();
-	    dsm.put((PyObject)new PyString("DJANGO_SETTINGS_MODULE"), (PyObject)new PyString(djangoAppName + ".settings"));
-	    environ.invoke("update", (PyObject)new PyDictionary(dsm)); */
 
 	    // load django app settings module
 	    PyObject settings = imp.load("settings");
@@ -121,6 +122,8 @@ public class DjangoServlet extends HttpServlet {
 
     protected void service(HttpServletRequest req, HttpServletResponse resp)
 	throws ServletException, IOException {
+	// set the system state
+	Py.setSystemState(this.sys);
 	// call the handler
     	this.handler.__call__(new PyJavaInstance(req), new PyJavaInstance(resp));
     }
